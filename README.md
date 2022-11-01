@@ -3,7 +3,7 @@
 ## Project Group
 
 * Hannah Harrison
-* 
+* Zhihui Zhang
 *
 
 Equity split equally between group members.
