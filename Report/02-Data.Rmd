@@ -1,0 +1,128 @@
+---
+title: "02 - Data"
+author: "Hannah Harrison"
+date: "2022-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library('fs')
+```
+
+To obtain this dataset in a convenient format, we will download it and process it into a standard form (containing headers). We will then further remove 10% of the 'kddcup.data_10_percent.gz' dataset at random, so that the same test dataset can be used for all models.
+
+### Get the data
+
+First create a directory for it to go in:
+```{r}
+rawdatadir=path_wd("..","data")
+if(!dir.exists(rawdatadir)) dir.create(rawdatadir,recursive = TRUE)
+```
+
+Download it
+```{r}
+download.file('http://kdd.ics.uci.edu/databases/kddcup99/kddcup.data_10_percent.gz', path_wd("..","data","kddcup.data_10_percent.gz"))
+
+download.file('http://kdd.ics.uci.edu/databases/kddcup99/kddcup.testdata.unlabeled_10_percent.gz', path_wd("..","data","kddcup.testdata.unlabeled_10_percent.gz"))
+
+download.file('http://kdd.ics.uci.edu/databases/kddcup99/corrected.gz', path_wd("..","data","corrected.gz"))
+
+download.file('http://kdd.ics.uci.edu/databases/kddcup99/kddcup.names', path_wd("..","data","kddcup.names"))
+
+```
+### Add column names to datasets
+
+Read in data:
+```{r}
+cnames = read.table(path_wd("..","data","kddcup.names"),
+                    as.is=T, skip=1, sep=":")
+
+kdd_10 = read.csv(path_wd("..","data","kddcup.data_10_percent.gz"))
+labeled_test = read.csv(path_wd("..","data","corrected.gz"))
+unlabeled_test = read.csv(path_wd("..","data","kddcup.testdata.unlabeled_10_percent.gz"))
+
+
+```
+Add column names. Note that the 'unlabeled' dataset has no 'normal' column.
+
+```{r}
+
+datafiles = list(kdd_10, labeled_test, unlabeled_test)
+
+colnames(kdd_10)=c(cnames[,1],"normal")
+colnames(labeled_test)=c(cnames[,1],"normal")
+colnames(unlabeled_test) = c(cnames[,1])
+
+
+```
+
+
+Check that this has worked:
+```{r}
+head(kdd_10)
+head(labeled_test)
+head(unlabeled_test)
+```
+
+### Preprocessing
+
+All columns apart from normal need to be converted to factor or a numeric.
+```{r}
+cols.fac <- c(2,3,4,7,12,21,22)
+for (file in datafiles) {
+  sapply(file[,cols.fac],as.factor)
+}
+
+v <- 1:41
+cols.num <- v[!(v %in% cols.fac)]
+
+for (file in datafiles) {
+  sapply(file[,cols.num],as.character)
+}
+for (file in datafiles) {
+  sapply(file[,cols.num],as.numeric)
+}
+
+```
+
+
+### Separating the test and training sets from kdd_10
+
+```{r}
+n = length(kdd_10[,1])
+test_sample = sample(1:n, n/10)
+
+kdd_10_train = kdd_10[!(1:n %in% test_sample), ]
+kdd_10_test = kdd_10[test_sample,]
+```
+
+Checking we have the correct dimensions:
+```{r}
+dim(kdd_10_test) # 49402 observations
+dim(kdd_10_train) # 444618 observations
+```
+
+### Create the processed data output.
+
+```{r}
+
+write.table(kdd_10_train,
+            path_wd("..","data","kdd_10_train.tab"),
+            quote=FALSE,row.names=FALSE)
+write.table(kdd_10_test,
+            path_wd("..","data","kdd_10_test.tab"),
+            quote=FALSE,row.names=FALSE)
+write.table(labeled_test,
+            path_wd("..","data","labeled_test"),
+            quote=FALSE,row.names=FALSE)
+write.table(unlabeled_test,
+            path_wd("..","data","unlabeled_test"),
+            quote=FALSE,row.names=FALSE)
+
+```
+### Summary:
+
+We have now created our data for training and testing, in a simple headed tabular format (which is space separated). This can be easily read into either R or Python.
