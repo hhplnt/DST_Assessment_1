@@ -116,10 +116,10 @@ write.table(kdd_10_test,
             path_wd("..","data","kdd_10_test.tab"),
             quote=FALSE,row.names=FALSE)
 write.table(labeled_test,
-            path_wd("..","data","labeled_test"),
+            path_wd("..","data","labeled_test.tab"),
             quote=FALSE,row.names=FALSE)
 write.table(unlabeled_test,
-            path_wd("..","data","unlabeled_test"),
+            path_wd("..","data","unlabeled_test.tab"),
             quote=FALSE,row.names=FALSE)
 
 ```

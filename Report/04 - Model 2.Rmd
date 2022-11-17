@@ -1,0 +1,29 @@
+---
+title: "04 - Model 2"
+author: "Hannah Harrison"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Model 2 - Feature Augmentation
+
+## Header content
+
+Required libraries:
+```{r}
+if (!require("tsne")) install.packages("tsne")
+
+library("tsne")
+
+```
+
+Load the data:
+```{r}
+kdd_10_train =read.table(path_wd("..","data","kdd_10_train.tab"),header=TRUE)
+```
+
+## Initial exploration
