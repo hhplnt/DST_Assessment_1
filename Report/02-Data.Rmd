@@ -8,8 +8,14 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+### Library requirements 
+
 ```{r}
-library('fs')
+if (!require("fs")) install.packages("fs")
+library("fs")
+if (!require("magrittr")) install.packages("magrittr")
+library("magrittr")
 ```
 
 To obtain this dataset in a convenient format, we will download it and process it into a standard form (containing headers). We will then further remove 10% of the 'kddcup.data_10_percent.gz' dataset at random, so that the same test dataset can be used for all models.
@@ -87,6 +93,67 @@ for (file in datafiles) {
 }
 
 ```
+
+We are also predominantly interested in predicting the general attack class, rather than the specific attack type, as the unlabeled test dataset contains attack types which aren't represented in the training set. Hence I will add a column to the datasets specifying the attack class. Within the dataset, there are 4 attack classes; Denial of Service (DoS), Probe, User to Root(U2R), and Remote to Local (R2L).
+
+Here I extract the labels and count how many types we have.
+
+
+```{r}
+attack_types1 <- unique(labeled_test$normal) 
+attack_types2 <- unique(kdd_10$normal)
+attack_types <- unique(c(attack_types1, attack_types2))
+attack_types
+length(attack_types1)
+length(attack_types2)
+length(attack_types)
+
+```
+Now I add the column with attack class. 
+
+Defining the classes:
+
+```{r}
+DDoS = c('neptune.', 'smurf.', 'pod.', 'teardrop.', 'land.', "back.", "apache2.", "udpstorm.", "processtable.", "mailbomb.")
+UR2 = c("buffer_overflow.","loadmodule.", "perl.", "rootkit.", "xterm.", "ps.", "httptunnel.", "sqlattack.", "worm.", "snmpguess.", "spy." )
+R2L = c("guess_passwd.", "ftp_write.", "imap.", "phf.", "multihop.", "warezmaster.", "warezclient.", "snmpgetattack.", "named.", "xlock." , "xsnoop.", "sendmail." )
+Probe = c("ipsweep.", "portsweep.", "nmap.", "satan." , "saint.", "mscan.")
+
+length(DDoS) + length(UR2) + length(R2L) + length(Probe) + 1
+# Correct number of types
+
+```
+
+Creating the class column:
+
+```{r}
+kdd_10 <- within(kdd_10, {
+  class = 0 
+  class[normal %in% c("normal.")] = 'normal'
+  class[normal %in% DDoS] = 'DDoS'
+  class[normal %in% UR2] = 'UR2'
+  class[normal %in% R2L] = 'R2L'
+  class[normal %in% Probe] = 'Probe'
+})
+
+labeled_test <- within(labeled_test, {
+  class = 0 
+  class[normal %in% c("normal.")] = 'normal'
+  class[normal %in% DDoS] = 'DDoS'
+  class[normal %in% UR2] = 'UR2'
+  class[normal %in% R2L] = 'R2L'
+  class[normal %in% Probe] = 'Probe'
+})
+```
+
+Check this has worked:
+```{r}
+unique(kdd_10$class)
+unique(labeled_test$class)
+```
+
+
+
 
 
 ### Separating the test and training sets from kdd_10
