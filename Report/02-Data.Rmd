@@ -193,3 +193,7 @@ write.table(unlabeled_test,
 ### Summary:
 
 We have now created our data for training and testing, in a simple headed tabular format (which is space separated). This can be easily read into either R or Python.
+
+
+### Reference:
+List of attack types which fall into each class taken from: https://www.researchgate.net/figure/The-distribution-of-attack-types-in-the-KDD-Cup-99-and-NSL-KDD_tbl1_298318568
