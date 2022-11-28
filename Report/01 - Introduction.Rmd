@@ -1,1 +1,3 @@
 # Introduction
+
+For this problem, we want our false positive rate to be as low as possible. This is because normal traffic being dropped due to misclassification as a “bad” connection is less severe than a connection from an attack being misclassified as a “normal” connection, which may result in a security threat. 

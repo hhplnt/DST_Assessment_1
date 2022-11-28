@@ -16,8 +16,9 @@ knitr::opts_chunk$set(echo = TRUE)
 Required libraries:
 ```{r}
 if (!require("tsne")) install.packages("tsne")
-
+if (!require("knitr")) install.packages("knitr")
 library("tsne")
+library("knitr")
 
 ```
 
@@ -26,4 +27,51 @@ Load the data:
 kdd_10_train =read.table(path_wd("..","data","kdd_10_train.tab"),header=TRUE)
 ```
 
+##Introduction
+
+In this script, I explore the effects of augmenting the feature space using techniques such as PCA and clustering on the predictive performance, and build a model based on this investigation.
+
 ## Initial exploration
+
+We first take a look at the data, and check that it has been imported correctly.
+```{r}
+dim(kdd_10_train)
+head(kdd_10_train)
+```
+We have a total of 444618 observations of 41 predictor variables, and two additional columns containing the attack type and class, or a label of normal if there is no attack. The objective of my model is to predict the attack class from the remaining features. 
+
+### Data cleaning
+
+Before any data analysis, it is important to check for and consider imputing any null values. 
+
+```{r}
+for (col in kdd_10_train){
+  print(is.null(col))
+}
+kdd_10_train <- unique(kdd_10_train) #remove duplicate rows
+dim(kdd_10_train)
+  
+```
+There are no null values in any column, so we don't need to consider any imputation here, however we should proceed with caution, as with any network application, a value of 0 for a numeric measurement could indicate that the measurment process failed. 
+
+We know that the columns contain the correct data types (factor/ numeric/string), as this was ensured in the data file.
+
+### Initial EDA
+
+
+```{r}
+table(kdd_10_train$class)
+prop.table(table(kdd_10_train$class))
+plot(table(kdd_10_train$class))
+
+```
+Here we can see that most of the data (almost 60%) is normal network traffic. Of the data which corresponds to an attack, the vast majority are DDoS attacks, followed by Probe, R2L and UR2, which all correspond to relatively few observations. This dataset is highly imbalanced,and so we will need to take this into account when building a model which needs to classify the points belonging to these different classes accurately.
+
+```{r}
+
+```
+
+
+
+
+
