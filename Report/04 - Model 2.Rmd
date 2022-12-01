@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Model 2 - Feature Augmentation
+# Model 2 
 
 ## Header content
 
@@ -17,9 +17,27 @@ Required libraries:
 ```{r}
 if (!require("tsne")) install.packages("tsne")
 if (!require("knitr")) install.packages("knitr")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("gridExtra")) install.packages("gridExtra")
+if (!require("caret")) install.packages("caret")
+if (!require("class")) install.packages("class")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("caTools")) install.packages("caTools")
+if (!require("lsa")) install.packages("lsa")
+if (!require("e1071")) install.packages('e1071')
+if (!require("klaR")) install.packages('klaR')
+
 library("tsne")
 library("knitr")
-
+library(ggplot2)
+library(gridExtra)
+library(caret)
+library(class)
+library(dplyr)
+library(caTools)
+library(lsa)
+library(e1071)
+library(klaR)
 ```
 
 Load the data:
@@ -29,7 +47,7 @@ kdd_10_train =read.table(path_wd("..","data","kdd_10_train.tab"),header=TRUE)
 
 ##Introduction
 
-In this script, I explore the effects of augmenting the feature space using techniques such as PCA and clustering on the predictive performance, and build a model based on this investigation.
+In this script, I investigate using a Naive Bayes model to predict the class of attack. I then explore the effects of parameter tuning and feature augmentation using techniques such as PCA and scaling on the predictive performance, and select the best model based on this investigation.
 
 ## Initial exploration
 
@@ -50,9 +68,9 @@ for (col in kdd_10_train){
 }
 kdd_10_train <- unique(kdd_10_train) #remove duplicate rows
 dim(kdd_10_train)
-  
+
 ```
-There are no null values in any column, so we don't need to consider any imputation here, however we should proceed with caution, as with any network application, a value of 0 for a numeric measurement could indicate that the measurment process failed. 
+There are no null values in any column, so we don't need to consider any imputation here, however we should proceed with caution, as with any network application, a value of 0 for a numeric measurement could indicate that the measurement process failed. 
 
 We know that the columns contain the correct data types (factor/ numeric/string), as this was ensured in the data file.
 
@@ -65,13 +83,190 @@ prop.table(table(kdd_10_train$class))
 plot(table(kdd_10_train$class))
 
 ```
-Here we can see that most of the data (almost 60%) is normal network traffic. Of the data which corresponds to an attack, the vast majority are DDoS attacks, followed by Probe, R2L and UR2, which all correspond to relatively few observations. This dataset is highly imbalanced,and so we will need to take this into account when building a model which needs to classify the points belonging to these different classes accurately.
+Here we can see that most of the data (almost 60%) is normal network traffic. Of the data which corresponds to an attack, the vast majority are DDoS attacks, followed by Probe, R2L and UR2, which all correspond to relatively few observations. This dataset is highly imbalanced,and so we will need to be aware of this when building a model which needs to classify the points belonging to these different classes accurately.
+
+## Model Fitting
+
+I will further split the training data into two parts so that I can evaluate my models on left out data.
 
 ```{r}
-
+set.seed(123)
+split = sample.split(kdd_10_train$class, SplitRatio = 0.75)
+train_set = subset(kdd_10_train, split == TRUE)
+test_set = subset(kdd_10_train, split == FALSE)
 ```
 
 
+## Naive Bayes 
 
+I now fit a Naive Bayes model. First, I define the features and labels to input into the model.
+
+```{r}
+train_label = train_set$class
+train_features = train_set[ ,1:41]
+test_label = test_set$class
+test_features = test_set[,1:41]
+```
+
+Training the model using the naiveBayes function from the e1071 package.
+
+```{r}
+naive_bayes_model = naiveBayes(as.factor(train_label)~.,
+                                    train_features)
+```
+
+Performance on the training set:
+```{r}
+# Prediction
+
+naive_bayes_pred = predict(naive_bayes_model, train_features)
+
+# Get the accuracy
+NB_accuracy <- mean(train_label == naive_bayes_pred,na.rm = TRUE)
+NB_accuracy
+
+#Confusion matrix
+cm <- confusionMatrix(as.factor(naive_bayes_pred),
+                       as.factor(train_label))
+
+cm
+# Stats not so good for R2L; makes sense as this a small class
+```
+As we can see, the accuracy is 84%, which seems fairly good, however the predictions for R2L are pretty poor. It makes sense that the model would struggle with this class, as we identifies that it appears in relatively few data instances, however in this model, we correctly identify R2L attacks fewer than 1/3 of the time.
+
+Performance on the left out data:
+```{r}
+# Prediction
+
+naive_bayes_pred = predict(naive_bayes_model, test_features)
+
+# Get the accuracy
+NB_accuracy <- mean(test_label == naive_bayes_pred,na.rm = TRUE)
+NB_accuracy
+
+
+cm2 <- confusionMatrix(as.factor(naive_bayes_pred),
+                       as.factor(test_label))
+cm2
+```
+The results on the test set are similar, and we see an accuracy of 84% and similar problems with R2L. This is as expected, as the test and training set are from the same distribution, however it does provide a good sanity check that the model isn't too badly overfitted.
+
+
+### Cross validation
+
+We can further investigate the models out of sample performance using cross validation, and we can see whether this has the potential to improve the fit. Here I use the caret package, which facilitates the easy implementation of cross validation.
+
+
+```{r}
+
+# set up 10-fold cross validation procedure
+train_control <- trainControl(
+  method = "cv", 
+  number = 10
+  )
+
+# Train model
+nb.m1 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control
+  )
+
+# Confusion matrix
+confusionMatrix(nb.m1)
+
+```
+Indeed, cross validation seems to have improved the model accuracy massively, as we have an average accuracy of 0.963. How does this model fare on the test set?
+
+```{r}
+pred <- predict(nb.m2, newdata = test_features)
+confusionMatrix(pred, test_label)
+```
+
+~~~~~~~~~~
+
+
+### Parameter Tuning
+
+Can the model fit be improved by tuning the hyperparameters?
+The caret package also offers an easy way to tune parameters. In the naive bayes model, the hyperparameters we can tune are:
+- the usekernel parameter, which allows us to use a kernel density estimate for continuous variables versus a gaussian density estimate,
+- adjust, which allows us to adjust the bandwidth of the kernel density (larger numbers mean more flexible density estimate),
+- fL, which allows us to incorporate the Laplace smoother
+
+Rather than looking at all of these manually, which would take a long time and involve difficult comparisons, I will use the train function to consider the tuning of the parameters and output the best 5 models.
+
+```{r}
+# set up tuning grid
+search_grid <- expand.grid(
+  usekernel = c(TRUE, FALSE),
+  fL = 0:5,
+  adjust = seq(0, 5, by = 1)
+)
+
+# train model
+nb.m2 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control,
+  tuneGrid = search_grid
+  )
+
+# top 5 modesl
+nb.m2$results %>% 
+  top_n(5, wt = Accuracy) %>%
+  arrange(desc(Accuracy))
+
+
+# plot search grid results
+plot(nb.m2)
+```
+
+
+Results for best model:
+
+```{r}
+confusionMatrix(nb.m2)
+```
+
+### Feature augmentation
+
+The above code can be edited to also investigate the effects of transforming the features. Here I choose to try normalizing with Box Cox, standardizing with center-scaling, and reducing the dimensionality with PCA. 
+
+```{r}
+# set up tuning grid
+search_grid <- expand.grid(
+  usekernel = c(TRUE, FALSE),
+  fL = 0:5,
+  adjust = seq(0, 5, by = 1)
+)
+
+# train model
+nb.m3 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control,
+  tuneGrid = search_grid,
+  preProc = c("BoxCox", "center", "scale", "pca") #set transformations
+  )
+
+# top 5 modesl
+nb.m3$results %>% 
+  top_n(5, wt = Accuracy) %>%
+  arrange(desc(Accuracy))
+
+
+# plot search grid results
+plot(nb.m3)
+```
+
+Results for best model:
+
+```{r}
+confusionMatrix(nb.m3)
+```
 
 
