@@ -17,7 +17,6 @@ Required libraries:
 ```{r}
 if (!require("tsne")) install.packages("tsne")
 if (!require("knitr")) install.packages("knitr")
-if (!require("ggplot2")) install.packages("ggplot2")
 if (!require("gridExtra")) install.packages("gridExtra")
 if (!require("caret")) install.packages("caret")
 if (!require("class")) install.packages("class")
@@ -26,10 +25,12 @@ if (!require("caTools")) install.packages("caTools")
 if (!require("lsa")) install.packages("lsa")
 if (!require("e1071")) install.packages('e1071')
 if (!require("klaR")) install.packages('klaR')
+if (!require("xgboost")) install.packages('xgboost')
+if (!require("archdata")) install.packages('archdata')
+
 
 library("tsne")
 library("knitr")
-library(ggplot2)
 library(gridExtra)
 library(caret)
 library(class)
@@ -38,8 +39,9 @@ library(caTools)
 library(lsa)
 library(e1071)
 library(klaR)
-library(rpart)
-library(rpart.plot)
+library("xgboost")  
+library("archdata") 
+
 ```
 
 Load the data:
@@ -286,89 +288,35 @@ In summary, the fit of Naive Bayes models to this data can be improved by cross 
 
 ## Tree Based methods
 
-I will now investigate some tree based methods, first using the package 'rpart' to create a cross validated decision tree, implementing the cross validation manually for illustration.
+I will now investigate a tree based method to see if this can improve on the prediction of small classes.
 
-```{r}
-
-# Set seed for reproducibility.
-set.seed(1234)
-
-# Define the number of folds.
-k <- 5
-
-# Generate folds.
-folds <- sample(k, size = nrow(train_set), replace = TRUE)
-
-# Print first 10 values.
-head(folds)
-
-```
-
-The folds variable stores the fold each instance belongs to. For example, the first instance belongs to fold 4. We will iterate k =5 times.
-
-Next, the rpart() function is used to train the decision tree with the train set. By default, rpart() performs  10 -fold cross-validation internally and so to avoid this, we set the parameter xval = 0. 
-
-The ground truth classes and the predictions are stored so the performance metrics can be computed.
-
-```{r}
-# Variable to store ground truth classes.
-groundTruth <- NULL
-
-# Variable to store the classifier's predictions.
-predictions <- NULL
-
-for(i in 1:k){
-  
-  trainSet <- train_set[which(folds != i), ]
-  testSet <- train_set[which(folds == i), ]
-  
-  # Train the decision tree
-  treeClassifier <- rpart(class ~ .,
-                          trainSet, xval=0)
-  
-  # Get predictions on the test set.
-  foldPredictions <- predict(treeClassifier,
-                             testSet, type = "class")
-  
-  predictions <- c(predictions,
-                   as.character(foldPredictions))
-  
-  groundTruth <- c(groundTruth,
-                   as.character(testSet$class))
-}
-
-cm <- confusionMatrix(as.factor(predictions),
-                      as.factor(groundTruth))
-
-
-cm$overall["Accuracy"]
-
-cm
-```
-
-
-```{r}
-# Plot the tree from the last fold.
-rpart.plot(treeClassifier, fallen.leaves = F,
-           shadow.col = "gray", legend.y = 1)
-```
 
 ### Xgboost
 
 I now implement a boosted decision tree using xgboost.
 
-The xgboost model takes...
+The XGBoost algorithm requires the class labels to start at 0 and increase sequentially to the maximum number of classes. This is a bit of an inconvenience as you need to keep track of whick attack class goes with which label. Also, we need to be careful when adding or removing a 1 to go from the zero based labels to the 1 based labels. We have 
+1 = DDoS
+2 = Normal
+3 = Probe
+4 = R2L
+5 = UR2
 
 ```{r}
-train <- training_set
+train <- train_set
 
-for (i in c(2,3,4, 42)){
+for (i in c(2,3,4, 40)){
   train[,i] = as.numeric(as.factor(train[,i]))
 }
-summary(train)
+
+table(train_set$class)
+table(train$class)
 
 train$class = train$class - 1
 summary(train)
+
+
+
 ```
 
 
@@ -379,6 +327,10 @@ data_label <- train[,"class"]
 data_matrix <- xgb.DMatrix(data = as.matrix(train), label = data_label)
 ```
 
+### Parameters and cross validation
+Here I set the fitting parameters and then fit a series of XGBoost models to each cv.nfold. The list of xgb_params holds the objective, which I set to multi:softprob and the eval_metric, which I set to to mlogloss. These two parameters tell the XGBoost algorithm that we want to use probabilistic classification and use a multiclass logloss as the evaluation metric. Use of the multi:softprob objective also requires the input of the number of classes.
+
+The other parameters of note are nrounds and prediction. The nrounds parameter is the number of iterations and the prediction argument tells XGBoost to save the out-of-fold predictions so that we can use them to assess generalization error.
 
 ```{r}
 #CV
@@ -391,8 +343,9 @@ cv.nfold  <- 5
 ```
 
 
+
 ```{r}
-# Fit cv.nfold * cv.nround XGB models and save OOF predictions
+# Fit XGB models and save the out of fold predictions
 cv_model <- xgb.cv(params = xgb_params,
                    data = data_matrix, 
                    nrounds = nround,
@@ -401,23 +354,61 @@ cv_model <- xgb.cv(params = xgb_params,
                    prediction = TRUE)
 ```
 
+To assess prediction error, we use the data returned from the pred slot of the cv_model, which contains the predicted value for each observation in our train dataset when it was in the kth fold (the out-of-fold sample). This sample was not used to train the model so therefore acts as an independent sample for testing. This step allows us to derived an error estimate on all of our train samples as if the were independent from the model fit.
+
+The pred object returned from xgb.cv() contains a column for each of the classes and the probability that each observation belongs to each class. This why I chose the multi:softprob objective function as opposed to the multi:softmax function that predicts the model likely class. However, since we want to test the prediction, we do need to assign a class, so we use max.col() to assign the class that has the highest probability. 
 
 ```{r}
 # Prediction
-OOF_prediction <- data.frame(cv_model$pred) %>%
+prediction <- data.frame(cv_model$pred) %>%
   mutate(max_prob = max.col(., ties.method = "last"),
          label = data_label + 1)
-head(OOF_prediction)
+head(prediction)
 
-confusionMatrix(factor(OOF_prediction$max_prob),
-                factor(OOF_prediction$label),
+confusionMatrix(factor(prediction$max_prob),
+                factor(prediction$label),
+                mode = "everything")
+
+```
+We see that this appears to work extremely well, in fact it classifies every data instance correctly. I now fit the model based on all of the data. 
+
+Train full model:
+
+```{r}
+best_model <- xgb.train(params = xgb_params,
+                       data = data_matrix,
+                       nrounds = nround)
+```
+
+Testing on left out set:
+```{r}
+#Formatting
+test <- test_set
+
+for (i in c(2,3,4, 40)){
+  test[,i] = as.numeric(as.factor(test[,i]))
+}
+test$class = test$class - 1
+summary(test)
+
+#making xgboost matrix
+
+label <- test[,"class"]
+test_matrix <- xgb.DMatrix(data = as.matrix(test), label = label)
+
+#Prediction
+pred <- predict(best_model, test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label = label + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
                 mode = "everything")
 
 ```
 
-Left out set:
-```{r}
-
-```
-
-
+We get an accuracy of 100%, even on the left out data and even for the small classes! Hence this is the model I will use for performance evaluation on the testing data. It will be interesting to see how it reacts to the unseen attack types in the labelled test data.
