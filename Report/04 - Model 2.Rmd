@@ -38,6 +38,8 @@ library(caTools)
 library(lsa)
 library(e1071)
 library(klaR)
+library(rpart)
+library(rpart.plot)
 ```
 
 Load the data:
@@ -67,6 +69,7 @@ for (col in kdd_10_train){
   print(is.null(col))
 }
 kdd_10_train <- unique(kdd_10_train) #remove duplicate rows
+kdd_10_train <- kdd_10_train[ - as.numeric(which(apply(kdd_10_train, 2, var) == 0))] #removing any zero variance features
 dim(kdd_10_train)
 
 ```
@@ -91,6 +94,7 @@ I will further split the training data into two parts so that I can evaluate my 
 
 ```{r}
 set.seed(123)
+kdd_10_train = kdd_10_train[, -40]
 split = sample.split(kdd_10_train$class, SplitRatio = 0.75)
 train_set = subset(kdd_10_train, split == TRUE)
 test_set = subset(kdd_10_train, split == FALSE)
@@ -103,9 +107,9 @@ I now fit a Naive Bayes model. First, I define the features and labels to input 
 
 ```{r}
 train_label = train_set$class
-train_features = train_set[ ,1:41]
+train_features = train_set[ ,1:39]
 test_label = test_set$class
-test_features = test_set[,1:41]
+test_features = test_set[,1:39]
 ```
 
 Training the model using the naiveBayes function from the e1071 package.
@@ -159,10 +163,11 @@ We can further investigate the models out of sample performance using cross vali
 
 ```{r}
 
-# set up 10-fold cross validation procedure
+# set up 5-fold cross validation procedure
 train_control <- trainControl(
   method = "cv", 
-  number = 10
+  number = 5,
+  savePredictions = TRUE
   )
 
 # Train model
@@ -177,14 +182,15 @@ nb.m1 <- train(
 confusionMatrix(nb.m1)
 
 ```
-Indeed, cross validation seems to have improved the model accuracy massively, as we have an average accuracy of 0.963. How does this model fare on the test set?
+Indeed, cross validation seems to have improved the model accuracy massively, as we have an average accuracy of 96%. How does this model fare on the test set?
 
 ```{r}
-pred <- predict(nb.m2, newdata = test_features)
-confusionMatrix(pred, test_label)
+pred <- predict(nb.m1, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+summary(pred)
 ```
 
-~~~~~~~~~~
+Again looking at the average accuracy alone, the model appears to be performing well, however upon closer inspection of the predictions, we see that UR2 is never predicted and R2L is only predicted once, so the model isn't capturing the smaller classes at all! The model is predicting normal far too much.
 
 
 ### Parameter Tuning
@@ -201,8 +207,8 @@ Rather than looking at all of these manually, which would take a long time and i
 # set up tuning grid
 search_grid <- expand.grid(
   usekernel = c(TRUE, FALSE),
-  fL = 0:5,
-  adjust = seq(0, 5, by = 1)
+  fL = 0:3,
+  adjust = seq(0, 3, by = 1)
 )
 
 # train model
@@ -210,8 +216,8 @@ nb.m2 <- train(
   x = train_features,
   y = train_label,
   method = "nb",
-  trControl = train_control,
-  tuneGrid = search_grid
+  trControl = train_control,#cross validation
+  tuneGrid = search_grid #tuning search grid
   )
 
 # top 5 modesl
@@ -231,25 +237,25 @@ Results for best model:
 confusionMatrix(nb.m2)
 ```
 
+And on the left out set:
+```{r}
+pred <- predict(nb.m2, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+```
+We can see that the top 5 models all have similar accuracy to the previous model, and so tuning in this way doesn't seem to bring much improvement.
+
 ### Feature augmentation
 
-The above code can be edited to also investigate the effects of transforming the features. Here I choose to try normalizing with Box Cox, standardizing with center-scaling, and reducing the dimensionality with PCA. 
+The above code can be edited to also investigate the effects of transforming the features on the best model we have so far. Here I choose to try normalizing with Box Cox, standardizing with center-scaling, and reducing the dimensionality with PCA. 
 
 ```{r}
-# set up tuning grid
-search_grid <- expand.grid(
-  usekernel = c(TRUE, FALSE),
-  fL = 0:5,
-  adjust = seq(0, 5, by = 1)
-)
 
 # train model
 nb.m3 <- train(
   x = train_features,
   y = train_label,
   method = "nb",
-  trControl = train_control,
-  tuneGrid = search_grid,
+  trControl = train_control, #cross validation
   preProc = c("BoxCox", "center", "scale", "pca") #set transformations
   )
 
@@ -259,7 +265,7 @@ nb.m3$results %>%
   arrange(desc(Accuracy))
 
 
-# plot search grid results
+# plot results
 plot(nb.m3)
 ```
 
@@ -267,6 +273,151 @@ Results for best model:
 
 ```{r}
 confusionMatrix(nb.m3)
+```
+
+And on the left out set:
+```{r}
+pred <- predict(nb.m3, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+```
+Whilst the accuracy has decreased slightly here, we can see from the confusion matrix that this model is much better at detecting R2L attacks. Hence, scaling has improved the detection rate for R2L at only a small cost to the accuracy. UR2 also at least now has some predictions, however as such a tiny class, it is still proving difficult to identify.
+
+In summary, the fit of Naive Bayes models to this data can be improved by cross validation and scaling, and we can achieve a high model accuracy. Naive Bayes models struggle to identify the smaller classes, however this is improved by feature augmentation.
+
+## Tree Based methods
+
+I will now investigate some tree based methods, first using the package 'rpart' to create a cross validated decision tree, implementing the cross validation manually for illustration.
+
+```{r}
+
+# Set seed for reproducibility.
+set.seed(1234)
+
+# Define the number of folds.
+k <- 5
+
+# Generate folds.
+folds <- sample(k, size = nrow(train_set), replace = TRUE)
+
+# Print first 10 values.
+head(folds)
+
+```
+
+The folds variable stores the fold each instance belongs to. For example, the first instance belongs to fold 4. We will iterate k =5 times.
+
+Next, the rpart() function is used to train the decision tree with the train set. By default, rpart() performs  10 -fold cross-validation internally and so to avoid this, we set the parameter xval = 0. 
+
+The ground truth classes and the predictions are stored so the performance metrics can be computed.
+
+```{r}
+# Variable to store ground truth classes.
+groundTruth <- NULL
+
+# Variable to store the classifier's predictions.
+predictions <- NULL
+
+for(i in 1:k){
+  
+  trainSet <- train_set[which(folds != i), ]
+  testSet <- train_set[which(folds == i), ]
+  
+  # Train the decision tree
+  treeClassifier <- rpart(class ~ .,
+                          trainSet, xval=0)
+  
+  # Get predictions on the test set.
+  foldPredictions <- predict(treeClassifier,
+                             testSet, type = "class")
+  
+  predictions <- c(predictions,
+                   as.character(foldPredictions))
+  
+  groundTruth <- c(groundTruth,
+                   as.character(testSet$class))
+}
+
+cm <- confusionMatrix(as.factor(predictions),
+                      as.factor(groundTruth))
+
+
+cm$overall["Accuracy"]
+
+cm
+```
+
+
+```{r}
+# Plot the tree from the last fold.
+rpart.plot(treeClassifier, fallen.leaves = F,
+           shadow.col = "gray", legend.y = 1)
+```
+
+### Xgboost
+
+I now implement a boosted decision tree using xgboost.
+
+The xgboost model takes...
+
+```{r}
+train <- training_set
+
+for (i in c(2,3,4, 42)){
+  train[,i] = as.numeric(as.factor(train[,i]))
+}
+summary(train)
+
+train$class = train$class - 1
+summary(train)
+```
+
+
+```{r}
+#making xgboost matrix
+
+data_label <- train[,"class"]
+data_matrix <- xgb.DMatrix(data = as.matrix(train), label = data_label)
+```
+
+
+```{r}
+#CV
+numberOfClasses <- length(unique(train$class))
+xgb_params <- list("objective" = "multi:softprob",
+                   "eval_metric" = "mlogloss",
+                   "num_class" = numberOfClasses)
+nround    <- 50 # number of XGBoost rounds
+cv.nfold  <- 5
+```
+
+
+```{r}
+# Fit cv.nfold * cv.nround XGB models and save OOF predictions
+cv_model <- xgb.cv(params = xgb_params,
+                   data = data_matrix, 
+                   nrounds = nround,
+                   nfold = cv.nfold,
+                   verbose = FALSE,
+                   prediction = TRUE)
+```
+
+
+```{r}
+# Prediction
+OOF_prediction <- data.frame(cv_model$pred) %>%
+  mutate(max_prob = max.col(., ties.method = "last"),
+         label = data_label + 1)
+head(OOF_prediction)
+
+confusionMatrix(factor(OOF_prediction$max_prob),
+                factor(OOF_prediction$label),
+                mode = "everything")
+
+```
+
+Left out set:
+```{r}
+
 ```
 
 
