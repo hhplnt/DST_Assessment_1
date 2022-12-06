@@ -15,7 +15,7 @@ All report content is in the directory:
 
 The report is structured as follows:
 * 01-Introduction.Rmd
-* 02-Data
+* 02-Data.Rmd
 * 03-
 * 04-
 * 05 - 
