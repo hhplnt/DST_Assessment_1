@@ -212,6 +212,7 @@ The caret package also offers an easy way to tune parameters. In the naive bayes
 Rather than looking at all of these manually, which would take a long time and involve difficult comparisons, I will use the train function to consider the tuning of the parameters and output the best 5 models.
 
 ```{r}
+# This chunk takes a while to run, so I would recommend viewing the knitted file for this part.
 # set up tuning grid
 search_grid <- expand.grid(
   usekernel = c(TRUE, FALSE),
