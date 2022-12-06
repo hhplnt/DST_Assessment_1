@@ -19,7 +19,7 @@ The report is structured as follows:
 * 03-
 * 04-
 * 05 - 
-* 06-Competition
+* 06-Performance and discussion
 * 07-Conclusion.Rmd
 
 ## Requirements
