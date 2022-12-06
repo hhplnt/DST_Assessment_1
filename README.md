@@ -6,7 +6,6 @@
 * Zhihui Zhang
 *
 
-Equity split equally between group members.
 
 ## Reading Order
 
