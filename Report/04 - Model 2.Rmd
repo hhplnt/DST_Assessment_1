@@ -486,7 +486,7 @@ capture.output(
 confusionMatrix(factor(test_prediction$max_prob),
                 factor(test_prediction$label),
                 mode = "everything"),
-file = path_wd("..","performance","labeled_perf"))
+file = path_wd("..","performance","kdd_10_perf"))
 ```
 
 
