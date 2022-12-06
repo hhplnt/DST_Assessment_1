@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 # Model 2 
@@ -27,8 +27,9 @@ if (!require("e1071")) install.packages('e1071')
 if (!require("klaR")) install.packages('klaR')
 if (!require("xgboost")) install.packages('xgboost')
 if (!require("archdata")) install.packages('archdata')
+if (!require("fs")) install.packages("fs")
 
-
+library("fs")
 library("tsne")
 library("knitr")
 library(gridExtra)
@@ -51,7 +52,7 @@ kdd_10_train =read.table(path_wd("..","data","kdd_10_train.tab"),header=TRUE)
 
 ##Introduction
 
-In this script, I investigate using a Naive Bayes model to predict the class of attack. I then explore the effects of parameter tuning and feature augmentation using techniques such as PCA and scaling on the predictive performance, and select the best model based on this investigation.
+In this script, I investigate using a Naive Bayes model to predict the class of attack. I then explore the effects of parameter tuning and feature augmentation using techniques such as PCA and scaling on the predictive performance, and select the best model based on this investigation. After this, implement xgboost to investigate whether this will improve on the predictive performance of the Naive Bayes model. At the end of the script, I test the selected model on the competition test data and output the performance metrics.
 
 ## Initial exploration
 
@@ -70,8 +71,13 @@ Before any data analysis, it is important to check for and consider imputing any
 for (col in kdd_10_train){
   print(is.null(col))
 }
+
 kdd_10_train <- unique(kdd_10_train) #remove duplicate rows
-kdd_10_train <- kdd_10_train[ - as.numeric(which(apply(kdd_10_train, 2, var) == 0))] #removing any zero variance features
+
+#Which features have 0 variance:
+which(apply(kdd_10_train, 2, var) == 0)
+kdd_10_train <- kdd_10_train[ ,- as.numeric(which(apply(kdd_10_train, 2, var) == 0))] #removing zero variance features
+
 dim(kdd_10_train)
 
 ```
@@ -282,6 +288,7 @@ And on the left out set:
 pred <- predict(nb.m3, newdata = test_features)
 confusionMatrix(as.factor(pred), as.factor(test_label))
 ```
+
 Whilst the accuracy has decreased slightly here, we can see from the confusion matrix that this model is much better at detecting R2L attacks. Hence, scaling has improved the detection rate for R2L at only a small cost to the accuracy. UR2 also at least now has some predictions, however as such a tiny class, it is still proving difficult to identify.
 
 In summary, the fit of Naive Bayes models to this data can be improved by cross validation and scaling, and we can achieve a high model accuracy. Naive Bayes models struggle to identify the smaller classes, however this is improved by feature augmentation.
@@ -412,3 +419,100 @@ confusionMatrix(factor(test_prediction$max_prob),
 ```
 
 We get an accuracy of 100%, even on the left out data and even for the small classes! Hence this is the model I will use for performance evaluation on the testing data. It will be interesting to see how it reacts to the unseen attack types in the labelled test data.
+
+
+
+# Competition Testing
+
+Here I run the model on the competition test data and output the performance metrics which will be evaluated in 07 - Performance and Discussion.
+
+
+Load the test data:
+```{r}
+kdd_10_test =read.table(path_wd("..","data","kdd_10_test.tab"),header=TRUE)
+labeled_test =read.table(path_wd("..","data","labeled_test.tab"),header=TRUE)
+table(kdd_10_test$class)
+table(labeled_test$class)
+```
+
+
+Preparing the data:
+```{r}
+kdd_10_test <- kdd_10_test[,-c(20,21,42)] #removing the same columns as in training
+labeled_test<- labeled_test[,-c(20,21,42)]
+
+for (i in c(2,3,4, 40)){
+  kdd_10_test[,i] = as.numeric(as.factor(kdd_10_test[,i]))
+}
+kdd_10_test$class = kdd_10_test$class - 1
+label_1 = kdd_10_test$class
+
+for (i in c(2,3,4, 40)){
+  labeled_test[,i] = as.numeric(as.factor(labeled_test[,i]))
+}
+labeled_test$class = labeled_test$class - 1
+label_2 = labeled_test$class
+
+
+#making xgboost matrices
+
+labeled_test_matrix <- xgb.DMatrix(data = as.matrix(labeled_test), label = label_2)
+kdd_10_test_matrix <- xgb.DMatrix(data = as.matrix(kdd_10_test), label = label_1)
+
+```
+
+Prediction for kdd_10_test:
+
+```{r}
+pred <- predict(best_model, kdd_10_test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label_1 = label_1 + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything")
+```
+Saving the performance metrics:
+
+```{r}
+rawdatadir=path_wd("..","performance")
+if(!dir.exists(rawdatadir)) dir.create(rawdatadir,recursive = TRUE)
+
+capture.output(
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything"),
+file = path_wd("..","performance","labeled_perf"))
+```
+
+
+Prediction for labeled_test:
+
+```{r}
+pred <- predict(best_model, labeled_test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label_2 = label_2 + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything")
+```
+
+Saving performance metrics:
+```{r}
+
+capture.output(
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything"),
+file = path_wd("..","performance","labeled_perf"))
+```
+
