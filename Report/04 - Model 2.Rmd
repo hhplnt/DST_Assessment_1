@@ -419,7 +419,7 @@ confusionMatrix(factor(test_prediction$max_prob),
 
 ```
 
-We get an accuracy of 100%, even on the left out data and even for the small classes! Hence this is the model I will use for performance evaluation on the testing data. It will be interesting to see how it reacts to the unseen attack types in the labelled test data.
+We get an accuracy of 100%, even on the left out data and even for the small classes. Predicting using this model is also much faster than with the naive bayes model and so it seems like a win-win! Hence this is the model I will use for performance evaluation on the testing data. It will be interesting to see how it reacts to the unseen attack types in the labelled test data, as decision trees have a tendency to overfit the data.
 
 
 
