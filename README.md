@@ -29,7 +29,7 @@ The report is structured as follows:
 
 ## Requirements
 
-Requirements for the Rmd files are given within each script.
+Requirements for the files are given within each script and knit html files are provided for the R scripts.
 
 ## Evidence
 
