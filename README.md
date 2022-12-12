@@ -2,7 +2,7 @@
 
 ## Description
 
-An exploration of the methods available to classify attack types in network data. 
+An exploration of common techniques used to classify attack types in network data. 
 
 ## Project Group
 
