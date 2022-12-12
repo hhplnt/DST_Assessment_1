@@ -23,7 +23,7 @@ The report is structured as follows:
 * 03- Binary classifier invesigation
 * 04- Naive Bayes and Xgboost.Rmd
 * 05- Multi Logistic Regression
-* 06- KNN
+* 06- KNN model
 * 07- Performance and discussion.Rmd
 * 08- Conclusion.md
 
