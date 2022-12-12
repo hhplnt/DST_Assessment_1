@@ -18,14 +18,14 @@ All report content is in the directory:
 * Report/
 
 The report is structured as follows:
-* 01- Introduction.Rmd
+* 01- Introduction.md
 * 02- Data.Rmd
 * 03- Binary classifier invesigation
-* 04- Naive Bayes and Xgboost
+* 04- Naive Bayes and Xgboost.Rmd
 * 05- Multi Logistic Regression
 * 06- KNN
 * 07- Performance and discussion.Rmd
-* 08- Conclusion.Rmd
+* 08- Conclusion.md
 
 ## Requirements
 
