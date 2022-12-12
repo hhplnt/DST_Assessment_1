@@ -1,10 +1,14 @@
 # DST Assessment 1
 
+## Description
+
+An exploration of the methods available to classify attack types in network data. 
+
 ## Project Group
 
 * Hannah Harrison
 * Zhihui Zhang
-*
+* Ziyuan Jiang
 
 
 ## Reading Order
@@ -29,5 +33,14 @@ Requirements for the Rmd files are given within each script.
 
 ## Evidence
 
+Our working is shown in our own directories,
+
+* Evidence/HannahH
+* Evidence/Ziyuan Jiang
+* Evidence/Zhihui Zhang
+
+Hannah wrote files 01,02,04,07 and 08. Hailey wrote files 03 and 05. Jiang wrote file 06.
 
 ## Reflections
+
+Reflections will be uploaded individually via the blackboard submission point.
