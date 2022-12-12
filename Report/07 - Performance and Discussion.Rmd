@@ -11,6 +11,41 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 # Performance testing 
 
+## The test data 
+
+```{r}
+if (!require("fs")) install.packages("fs")
+library("fs")
+```
+
+Load the data:
+```{r}
+kdd_10_test =read.table(path_wd("..","data","kdd_10_test.tab"),header=TRUE)
+labeled_test =read.table(path_wd("..","data","labeled_test.tab"),header=TRUE)
+```
+
+One of the reasons that we chose to look at the labeled test data is the aggravating factor that the distribution of attack classes is very different to the kdd_10 data. This difference between the two test sets can be seen in the tables and charts below. 
+
+```{r}
+table(kdd_10_test$class)
+prop.table(table(kdd_10_test$class))
+plot(table(kdd_10_test$class))
+
+table(labeled_test$class)
+prop.table(table(labeled_test$class))
+plot(table(labeled_test$class))
+```
+In particular, the kdd_10 data contains very few instances of Probe, R2L and UR2 at all, whereas the labeled test set contains larger proportions of each. It will be interesting to see what difference this makes to the models' performance. 
+
+As set out in the introduction, the modes will be compared based on the following three performance metrics:
+1. Accuracy
+2. Precision for each attack type, as we want to consider the proportion of positive identifications that are actually correct
+3. The recall (i.e. sensitivity) of less common attack classes in the test data (R2L, Probe and UR2)
+
+
+
+
+
 ## KDD_10
 
 We first evaluate the models' performance on the left out data from the 10 percent dataset, i.e. the test data with the same distribution as the training data. 
@@ -74,7 +109,84 @@ No confusion matrix was provided in the script.
 
 ### Comparison
 
-Here we can see that, as it achieves 100% accuracy, the xgboost model clearly has the best performance on this dataset, which isn't too surprising as this test data comes from the same distribution as the training. The more interesting comparison comes between the other two models. With an accuracy of 98%, the multi-logistic regression model performs much better than the KNN model on this set in terms of this metric. Further, we can see that whilst the precision for normal data 
+Here we can see that, as it achieves 100% accuracy, the xgboost model clearly has the best performance on this dataset, which isn't too surprising as this test data comes from the same distribution as the training. The more interesting comparison comes between the other two models. 
 
+With an accuracy of 98%, the multi-logistic regression model performs much better than the KNN model on this set in terms of this metric. Further, we can see that whilst the precision for DDoS attacks was high in both models, the precision for normal data was far higher in model 2 than model 3. This indicates that model 2 is far superior in terms of the false positive rate, and that model 3 classifies many instances which actually correspond to attacks as normal. This could be problematic in this context, as security threats could be missed. The precision for probe attacks however, is higher in model 3 than model 2, indicating that this could be the superior choice if we were particularly concerned about correctly identifying probe attacks. 
+
+In terms of recall, model 3 has extremely high scores for normal and DDoS attacks, and very low scores for the other three classes, whereas (apart from UR2), the scores for model 2 are more balanced. This ephasises the problem that model 3 is predicting normal too often, and shows that model 2 is better at distributing predictions between classes, although we can see from the confusion matrix that it does still suffer from the over-prediction of normal.
+
+We can see by the low precision scores for R2L, and low precision and recall scores in both models 2 and 3 for UR2, that the models are already struggling with the smaller classes. In fact, model 3 doesn't predict UR2 at all! This may be exacerbated in the labeled test data predictions. 
+
+
+## Labeled_test
+
+We now evaluate the models' performance on the labeled test dataset, i.e. the test data with a different distribution of attacks to the training data. 
+
+### Model 1: Xgboost
+
+Confusion Matrix and Statistics
+
+          Reference
+Prediction  DDoS  Normal  Probe R2L   UR2
+      DDos 229853      0      0      0      0
+    Normal      0  60592      0      0      0
+     Probe      0      0   4166      0      0
+       R2L      0      0      0  13781      0
+       UR2      0      0      0      0   2636
+
+Statistics by Class:
+                       DDoS    Normal Probe    R2L      UR2
+Sensitivity             1.000   1.0000  1.00000  1.00000 1.000000
+Specificity             1.000   1.0000  1.00000  1.00000 1.000000
+Pos Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
+Neg Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
+Precision               1.000   1.0000  1.00000  1.00000 1.000000
+Recall                  1.000   1.0000  1.00000  1.00000 1.000000
+F1                      1.000   1.0000  1.00000  1.00000 1.000000
+
+
+### Model 2: Multi-logistic Regression
+
+Confusion matrix:
+
+        normal  probe  ur2    ddos   r2l
+normal   58615    475   92     598   811
+probe      592   3473    8      23    70
+ur2       2564      5   49       0    18
+ddos     40121    510    5  189202    15
+r2l      12080      1   22       1  1677
+
+     index:    precision    recall  f1-score   support
+      normal     0.5143    0.9674    0.6716     60591
+       probe     0.7780    0.8337    0.8049      4166
+         ur2     0.2784    0.0186    0.0349      2636
+        ddos     0.9967    0.8231    0.9017    229853
+         r2l     0.6472    0.1217    0.2049     13781
+
+    accuracy                         0.8135    311027
+
+
+### Model 3: KNN
+No confusion matrix was provided in the script.
+
+             precision    recall  f1-score   support
+
+   Normal       1.00      0.72      0.84     83286
+     DDoS       0.96      1.00      0.98    221933
+      UR2       0.00      0.60      0.00        10
+      R2L       0.07      0.91      0.12      1006
+    Probe       0.75      0.65      0.70      4793
+
+    Accuracy                           0.92    311028
+
+### Comparison
+
+The first immediate observation is that the xgboost model again achieves 100% accuracy, which is more surprising this time, as the test data contains attack types which weren't present in the training data. This indicates that such decision tree models may be the superior choice for this type of problem.
+
+Interestingly, on this dataset, we see a switch in the order of the performance of models 2 and 3 in terms of accuracy. Indeed, the accuracy for the KNN model on this test set is surprisingly much higher than on the previous test set. Without further investigation, this could lead to the conclusion that model 3 is automatically a good choice for data from a different distribution to the training. However, looking at the other metrics, we can see that again UR2 is never correctly predicted, and this higher accuracy comes from the model being very good at predicting the two classes dominating the data (normal and DDoS). Hence this model would be a poor choice if we care about the smaller classes. 
+
+On the other hand, model 2 sees a significant decrease in accuracy on this test set compared to the last, which is as expected, due to the presence of attacks in the test set that were not included in the training data. Model 2 has lower precision than model 3 for Normal and DDos instances, however performs better on all of the smaller classes. This is less useful for situations where we care about limiting the number of false positives for cases of attacks vs normal, but more useful in situations where the goal is to correctly pick out the attack class of infrequent attacks.
+
+Looking at recall, model 3 seems to pick up r2l attacks better than model 2, however 
 
 
