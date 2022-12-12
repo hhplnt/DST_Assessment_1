@@ -95,7 +95,12 @@ r2l          2      0    2      0
     accuracy                         0.9816     49402
 
 ### Model 3: KNN
-No confusion matrix was provided in the script.
+	      normal	probe	ur2	ddos	r2l
+normal	3580	   75	  281	 0	 156
+probe	  598	    240	   1	 4	  10
+ur2	    356	     1	   0   0	   3
+ddos	  1246	  157	   6	38101	 3
+r2l	    2015	   0	  16	 1	  15
 
              precision    recall  f1-score   support
 
@@ -149,12 +154,12 @@ F1                      1.000   1.0000  1.00000  1.00000 1.000000
 
 Confusion matrix:
 
-        normal  probe  ur2    ddos   r2l
-normal   58615    475   92     598   811
-probe      592   3473    8      23    70
-ur2       2564      5   49       0    18
-ddos     40121    510    5  189202    15
-r2l      12080      1   22       1  1677
+                normal  probe  ur2    ddos   r2l
+        normal   58615    475   92     598   811
+        probe      592   3473    8      23    70
+        ur2       2564      5   49       0    18
+        ddos     40121    510    5  189202    15
+        r2l      12080      1   22       1  1677
 
      index:    precision    recall  f1-score   support
       normal     0.5143    0.9674    0.6716     60591
@@ -167,7 +172,13 @@ r2l      12080      1   22       1  1677
 
 
 ### Model 3: KNN
-No confusion matrix was provided in the script.
+    
+	      normal	probe	ur2	ddos	r2l
+normal	83286	  104	  91	210	  624
+probe	  3012	  270	  5	  21	  50
+ur2	    2453	   3	  0	   0	  15
+ddos	  7396	  502	  6	221933	16
+r2l	    10045	   0	 52	   5	  52
 
              precision    recall  f1-score   support
 
@@ -183,10 +194,12 @@ No confusion matrix was provided in the script.
 
 The first immediate observation is that the xgboost model again achieves 100% accuracy, which is more surprising this time, as the test data contains attack types which weren't present in the training data. This indicates that such decision tree models may be the superior choice for this type of problem.
 
-Interestingly, on this dataset, we see a switch in the order of the performance of models 2 and 3 in terms of accuracy. Indeed, the accuracy for the KNN model on this test set is surprisingly much higher than on the previous test set. Without further investigation, this could lead to the conclusion that model 3 is automatically a good choice for data from a different distribution to the training. However, looking at the other metrics, we can see that again UR2 is never correctly predicted, and this higher accuracy comes from the model being very good at predicting the two classes dominating the data (normal and DDoS). Hence this model would be a poor choice if we care about the smaller classes. 
+Interestingly, on this dataset, we see a switch in the order of the performance of models 2 and 3 in terms of accuracy. Indeed, the accuracy for the KNN model on this test set is surprisingly much higher than on the previous test set. Without further investigation, this could lead to the conclusion that model 3 is automatically a good choice for data from a different distribution to the training. However, looking at the other metrics, we can see that again UR2 is never correctly predicted, and this higher accuracy comes from the model being very good at predicting the two classes dominating the data (normal and DDoS). Hence this model would be a poor choice if we care about the smaller classes, as we can see from the confusion matrix that the model predicts these classes far too often and rarely gets it right. 
 
-On the other hand, model 2 sees a significant decrease in accuracy on this test set compared to the last, which is as expected, due to the presence of attacks in the test set that were not included in the training data. Model 2 has lower precision than model 3 for Normal and DDos instances, however performs better on all of the smaller classes. This is less useful for situations where we care about limiting the number of false positives for cases of attacks vs normal, but more useful in situations where the goal is to correctly pick out the attack class of infrequent attacks.
+On the other hand, model 2 sees a significant decrease in accuracy on this test set compared to the last, which is as expected, due to the presence of attacks in the test set that were not included in the training data. Model 2 has lower precision than model 3 for Normal and DDos instances, however performs better on all of the smaller classes. This is less useful for situations where we care about limiting the number of false positives for cases of attacks vs normal, but more useful in situations where the goal is to correctly pick out the attack class of infrequent attacks. 
 
-Looking at recall, model 3 seems to pick up r2l attacks better than model 2, however 
+To conclude, on this set, the xgboost model is the superior choice, and both models 2 and 3 suffer from over-predicting normal in attack instances.
+
+Overall, with 100% accuracy on both sets, the xgboost model is hard to beat. The multi logistic regression model performs well on the kdd_10 test data but performance falls significantly when the test data comes from a different distribution. The KNN model is very good at predicting DDoS attacks on both datasets, but struggles to distinguish the other classes.
 
 
