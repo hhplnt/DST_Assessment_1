@@ -1,4 +1,80 @@
-Model 1:
-Model 2:
-Model 3:
+---
+title: "07 - Performance and Discussion"
+author: "Hannah Harrison"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Performance testing 
+
+## KDD_10
+
+We first evaluate the models' performance on the left out data from the 10 percent dataset, i.e. the test data with the same distribution as the training data. 
+
+### Model 1: Xgboost
+
+Confusion Matrix and Statistics
+
+          Reference
+Prediction  DDoS  Normal  Probe R2L   UR2
+      DDos 39205     0     0     0     0
+    Normal     0  9703     0     0     0
+     Probe     0     0   390     0     0
+       R2L     0     0     0   102     0
+       UR2     0     0     0     0     2
+
+Statistics by Class:
+                       DDoS    Normal Probe    R2L      UR2
+Sensitivity            1.0000   1.0000 1.000000 1.000000 1.000e+00
+Specificity            1.0000   1.0000 1.000000 1.000000 1.000e+00
+Pos Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
+Neg Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
+Precision              1.0000   1.0000 1.000000 1.000000 1.000e+00
+Recall                 1.0000   1.0000 1.000000 1.000000 1.000e+00
+F1                     1.0000   1.0000 1.000000 1.000000 1.000e+00
+
+
+### Model 2: Multi-logistic Regression
+
+Confusion matrix:
+
+        normal  probe  ur2   ddos  r2l
+normal    9341     60   21      0  397
+probe       19    383    1      0    0
+ur2          2      0    2      0    2
+ddos       333     67    0  38660    3
+r2l          2      0    2      0  
+
+     index:    precision    recall  f1-score   support
+
+        normal     0.9633    0.9513    0.9573      9819
+         probe     0.7510    0.9504    0.8390       403
+           ur2     0.0769    0.3333    0.1250         6
+           ddos    1.0000    0.9897    0.9948     39063
+           r2l     0.2102    0.9640    0.3452       111
+
+    accuracy                         0.9816     49402
+
+### Model 3: KNN
+No confusion matrix was provided in the script.
+
+             precision    recall  f1-score   support
+
+         Normal   0.36      0.99      0.53      3611
+         DDoS     0.97      0.98      0.97     38871
+         UR2      0.00      0.00      0.00         0
+         R2L      0.43      0.01      0.02      5291
+         Probe    0.66      0.16      0.26      1629
+
+    accuracy                           0.85     49402
+
+### Comparison
+
+Here we can see that, as it achieves 100% accuracy, the xgboost model clearly has the best performance on this dataset, which isn't too surprising as this test data comes from the same distribution as the training. The more interesting comparison comes between the other two models. With an accuracy of 98%, the multi-logistic regression model performs much better than the KNN model on this set in terms of this metric. Further, we can see that whilst the precision for normal data 
+
+
 

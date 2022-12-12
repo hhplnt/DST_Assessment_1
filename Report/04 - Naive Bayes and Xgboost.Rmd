@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
-# Model 2 
+# Model 1
 
 ## Header content
 
@@ -477,18 +477,6 @@ confusionMatrix(factor(test_prediction$max_prob),
                 factor(test_prediction$label),
                 mode = "everything")
 ```
-Saving the performance metrics:
-
-```{r}
-rawdatadir=path_wd("..","performance")
-if(!dir.exists(rawdatadir)) dir.create(rawdatadir,recursive = TRUE)
-
-capture.output(
-confusionMatrix(factor(test_prediction$max_prob),
-                factor(test_prediction$label),
-                mode = "everything"),
-file = path_wd("..","performance","kdd_10_perf"))
-```
 
 
 Prediction for labeled_test:
@@ -507,13 +495,4 @@ confusionMatrix(factor(test_prediction$max_prob),
                 mode = "everything")
 ```
 
-Saving performance metrics:
-```{r}
-
-capture.output(
-confusionMatrix(factor(test_prediction$max_prob),
-                factor(test_prediction$label),
-                mode = "everything"),
-file = path_wd("..","performance","labeled_perf"))
-```
 
