@@ -55,34 +55,34 @@ We first evaluate the models' performance on the left out data from the 10 perce
 Confusion Matrix and Statistics
 
           Reference
-Prediction  DDoS  Normal  Probe R2L   UR2
-      DDos 39205     0     0     0     0
-    Normal     0  9703     0     0     0
-     Probe     0     0   390     0     0
-       R2L     0     0     0   102     0
-       UR2     0     0     0     0     2
+    Prediction  DDoS  Normal  Probe R2L   UR2
+          DDos 39205     0     0     0     0
+        Normal     0  9703     0     0     0
+         Probe     0     0   390     0     0
+           R2L     0     0     0   102     0
+           UR2     0     0     0     0     2
 
-Statistics by Class:
+    Statistics by Class:
                        DDoS    Normal Probe    R2L      UR2
-Sensitivity            1.0000   1.0000 1.000000 1.000000 1.000e+00
-Specificity            1.0000   1.0000 1.000000 1.000000 1.000e+00
-Pos Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
-Neg Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
-Precision              1.0000   1.0000 1.000000 1.000000 1.000e+00
-Recall                 1.0000   1.0000 1.000000 1.000000 1.000e+00
-F1                     1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Sensitivity            1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Specificity            1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Pos Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Neg Pred Value         1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Precision              1.0000   1.0000 1.000000 1.000000 1.000e+00
+    Recall                 1.0000   1.0000 1.000000 1.000000 1.000e+00
+    F1                     1.0000   1.0000 1.000000 1.000000 1.000e+00
 
 
 ### Model 2: Multi-logistic Regression
 
-Confusion matrix:
+    Confusion matrix:
 
-        normal  probe  ur2   ddos  r2l
-normal    9341     60   21      0  397
-probe       19    383    1      0    0
-ur2          2      0    2      0    2
-ddos       333     67    0  38660    3
-r2l          2      0    2      0  
+            normal  probe  ur2   ddos  r2l
+    normal    9341     60   21      0  397
+    probe       19    383    1      0    0
+    ur2          2      0    2      0    2
+    ddos       333     67    0  38660    3
+    r2l          2      0    2      0  
 
      index:    precision    recall  f1-score   support
 
@@ -95,12 +95,13 @@ r2l          2      0    2      0
     accuracy                         0.9816     49402
 
 ### Model 3: KNN
-	      normal	probe	ur2	ddos	r2l
-normal	3580	   75	  281	 0	 156
-probe	  598	    240	   1	 4	  10
-ur2	    356	     1	   0   0	   3
-ddos	  1246	  157	   6	38101	 3
-r2l	    2015	   0	  16	 1	  15
+
+            normal	probe	ur2	ddos	r2l
+    normal	3580	   75	  281	 0	 156
+    probe	  598	    240	   1	 4	  10
+    ur2	    356	     1	   0   0	   3
+    ddos	  1246	  157	   6	38101	 3
+    r2l	    2015	   0	  16	 1	  15
 
              precision    recall  f1-score   support
 
@@ -129,25 +130,26 @@ We now evaluate the models' performance on the labeled test dataset, i.e. the te
 
 ### Model 1: Xgboost
 
-Confusion Matrix and Statistics
+    Confusion Matrix and Statistics
 
-          Reference
-Prediction  DDoS  Normal  Probe R2L   UR2
-      DDos 229853      0      0      0      0
-    Normal      0  60592      0      0      0
-     Probe      0      0   4166      0      0
-       R2L      0      0      0  13781      0
-       UR2      0      0      0      0   2636
+              Reference
+    Prediction  DDoS  Normal  Probe R2L   UR2
+          DDos 229853      0      0      0      0
+        Normal      0  60592      0      0      0
+         Probe      0      0   4166      0      0
+           R2L      0      0      0  13781      0
+           UR2      0      0      0      0   2636
 
-Statistics by Class:
-                       DDoS    Normal Probe    R2L      UR2
-Sensitivity             1.000   1.0000  1.00000  1.00000 1.000000
-Specificity             1.000   1.0000  1.00000  1.00000 1.000000
-Pos Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
-Neg Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
-Precision               1.000   1.0000  1.00000  1.00000 1.000000
-Recall                  1.000   1.0000  1.00000  1.00000 1.000000
-F1                      1.000   1.0000  1.00000  1.00000 1.000000
+Statistics by Class
+
+                           DDoS    Normal Probe    R2L      UR2
+    Sensitivity             1.000   1.0000  1.00000  1.00000 1.000000
+    Specificity             1.000   1.0000  1.00000  1.00000 1.000000
+    Pos Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
+    Neg Pred Value          1.000   1.0000  1.00000  1.00000 1.000000
+    Precision               1.000   1.0000  1.00000  1.00000 1.000000
+    Recall                  1.000   1.0000  1.00000  1.00000 1.000000
+    F1                      1.000   1.0000  1.00000  1.00000 1.000000
 
 
 ### Model 2: Multi-logistic Regression
@@ -173,20 +175,20 @@ Confusion matrix:
 
 ### Model 3: KNN
     
-	      normal	probe	ur2	ddos	r2l
-normal	83286	  104	  91	210	  624
-probe	  3012	  270	  5	  21	  50
-ur2	    2453	   3	  0	   0	  15
-ddos	  7396	  502	  6	221933	16
-r2l	    10045	   0	 52	   5	  52
+    	      normal	probe	ur2	ddos	r2l
+    normal	83286	  104	  91	210	  624
+    probe	  3012	  270	  5	  21	  50
+    ur2	    2453	   3	  0	   0	  15
+    ddos	  7396	  502	  6	221933	16
+    r2l	    10045	   0	 52	   5	  52
 
              precision    recall  f1-score   support
 
-   Normal       1.00      0.72      0.84     83286
-     DDoS       0.96      1.00      0.98    221933
-      UR2       0.00      0.60      0.00        10
-      R2L       0.07      0.91      0.12      1006
-    Probe       0.75      0.65      0.70      4793
+    Normal       1.00      0.72      0.84     83286
+      DDoS       0.96      1.00      0.98    221933
+       UR2       0.00      0.60      0.00        10
+       R2L       0.07      0.91      0.12      1006
+     Probe       0.75      0.65      0.70      4793
 
     Accuracy                           0.92    311028
 
