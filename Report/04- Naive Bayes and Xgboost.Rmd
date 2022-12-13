@@ -1,0 +1,504 @@
+---
+title: "04 - Model 2"
+author: "Hannah Harrison"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Model 1
+
+## Header content
+
+Required libraries:
+```{r}
+if (!require("tsne")) install.packages("tsne")
+if (!require("knitr")) install.packages("knitr")
+if (!require("gridExtra")) install.packages("gridExtra")
+if (!require("caret")) install.packages("caret")
+if (!require("class")) install.packages("class")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("caTools")) install.packages("caTools")
+if (!require("lsa")) install.packages("lsa")
+if (!require("e1071")) install.packages('e1071')
+if (!require("klaR")) install.packages('klaR')
+if (!require("xgboost")) install.packages('xgboost')
+if (!require("archdata")) install.packages('archdata')
+if (!require("fs")) install.packages("fs")
+
+library("fs")
+library("tsne")
+library("knitr")
+library(gridExtra)
+library(caret)
+library(class)
+library(dplyr)
+library(caTools)
+library(lsa)
+library(e1071)
+library(klaR)
+library("xgboost")  
+library("archdata") 
+
+```
+
+Load the data:
+```{r}
+kdd_10_train =read.table(path_wd("..","data","kdd_10_train.tab"),header=TRUE)
+```
+
+##Introduction
+
+In this script, I investigate using a Naive Bayes model to predict the class of attack. I then explore the effects of parameter tuning and feature augmentation using techniques such as PCA and scaling on the predictive performance, and select the best model based on this investigation. After this, implement xgboost to investigate whether this will improve on the predictive performance of the Naive Bayes model. At the end of the script, I test the selected model on the competition test data and output the performance metrics.
+
+## Initial exploration
+
+We first take a look at the data, and check that it has been imported correctly.
+```{r}
+dim(kdd_10_train)
+head(kdd_10_train)
+```
+We have a total of 444618 observations of 41 predictor variables, and two additional columns containing the attack type and class, or a label of normal if there is no attack. The objective of my model is to predict the attack class from the remaining features. 
+
+### Data cleaning
+
+Before any data analysis, it is important to check for and consider imputing any null values. 
+
+```{r}
+for (col in kdd_10_train){
+  print(is.null(col))
+}
+
+kdd_10_train <- unique(kdd_10_train) #remove duplicate rows
+
+#Which features have 0 variance:
+which(apply(kdd_10_train, 2, var) == 0)
+kdd_10_train <- kdd_10_train[ ,- as.numeric(which(apply(kdd_10_train, 2, var) == 0))] #removing zero variance features
+
+dim(kdd_10_train)
+
+```
+There are no null values in any column, so we don't need to consider any imputation here, however we should proceed with caution, as with any network application, a value of 0 for a numeric measurement could indicate that the measurement process failed. 
+
+We know that the columns contain the correct data types (factor/ numeric/string), as this was ensured in the data file.
+
+### Initial EDA
+
+
+```{r}
+table(kdd_10_train$class)
+prop.table(table(kdd_10_train$class))
+plot(table(kdd_10_train$class))
+
+```
+Here we can see that most of the data (almost 60%) is normal network traffic. Of the data which corresponds to an attack, the vast majority are DDoS attacks, followed by Probe, R2L and UR2, which all correspond to relatively few observations. This dataset is highly imbalanced,and so we will need to be aware of this when building a model which needs to classify the points belonging to these different classes accurately.
+
+## Model Fitting
+
+I will further split the training data into two parts so that I can evaluate my models on left out data.
+
+```{r}
+set.seed(123)
+kdd_10_train = kdd_10_train[, -40]
+split = sample.split(kdd_10_train$class, SplitRatio = 0.75)
+train_set = subset(kdd_10_train, split == TRUE)
+test_set = subset(kdd_10_train, split == FALSE)
+```
+
+
+## Naive Bayes 
+
+I now fit a Naive Bayes model. First, I define the features and labels to input into the model.
+
+```{r}
+train_label = train_set$class
+train_features = train_set[ ,1:39]
+test_label = test_set$class
+test_features = test_set[,1:39]
+```
+
+Training the model using the naiveBayes function from the e1071 package.
+
+```{r}
+naive_bayes_model = naiveBayes(as.factor(train_label)~.,
+                                    train_features)
+```
+
+Performance on the training set:
+```{r}
+# Prediction
+
+naive_bayes_pred = predict(naive_bayes_model, train_features)
+
+# Get the accuracy
+NB_accuracy <- mean(train_label == naive_bayes_pred,na.rm = TRUE)
+NB_accuracy
+
+#Confusion matrix
+cm <- confusionMatrix(as.factor(naive_bayes_pred),
+                       as.factor(train_label))
+
+cm
+# Stats not so good for R2L; makes sense as this a small class
+```
+As we can see, the accuracy is 84%, which seems fairly good, however the predictions for R2L are pretty poor. It makes sense that the model would struggle with this class, as we identifies that it appears in relatively few data instances, however in this model, we correctly identify R2L attacks fewer than 1/3 of the time.
+
+Performance on the left out data:
+```{r}
+# Prediction
+
+naive_bayes_pred = predict(naive_bayes_model, test_features)
+
+# Get the accuracy
+NB_accuracy <- mean(test_label == naive_bayes_pred,na.rm = TRUE)
+NB_accuracy
+
+
+cm2 <- confusionMatrix(as.factor(naive_bayes_pred),
+                       as.factor(test_label))
+cm2
+```
+The results on the test set are similar, and we see an accuracy of 84% and similar problems with R2L. This is as expected, as the test and training set are from the same distribution, however it does provide a good sanity check that the model isn't too badly overfitted.
+
+
+### Cross validation
+
+We can further investigate the models out of sample performance using cross validation, and we can see whether this has the potential to improve the fit. Here I use the caret package, which facilitates the easy implementation of cross validation.
+
+
+```{r}
+
+# set up 5-fold cross validation procedure
+train_control <- trainControl(
+  method = "cv", 
+  number = 5,
+  savePredictions = TRUE
+  )
+
+# Train model
+nb.m1 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control
+  )
+
+# Confusion matrix
+confusionMatrix(nb.m1)
+
+```
+Indeed, cross validation seems to have improved the model accuracy massively, as we have an average accuracy of 96%. How does this model fare on the test set?
+
+```{r}
+pred <- predict(nb.m1, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+summary(pred)
+```
+
+Again looking at the average accuracy alone, the model appears to be performing well, however upon closer inspection of the predictions, we see that UR2 is never predicted and R2L is only predicted once, so the model isn't capturing the smaller classes at all! The model is predicting normal far too much.
+
+
+### Parameter Tuning
+
+Can the model fit be improved by tuning the hyperparameters?
+The caret package also offers an easy way to tune parameters. In the naive bayes model, the hyperparameters we can tune are:
+- the usekernel parameter, which allows us to use a kernel density estimate for continuous variables versus a gaussian density estimate,
+- adjust, which allows us to adjust the bandwidth of the kernel density (larger numbers mean more flexible density estimate),
+- fL, which allows us to incorporate the Laplace smoother
+
+Rather than looking at all of these manually, which would take a long time and involve difficult comparisons, I will use the train function to consider the tuning of the parameters and output the best models. I plot the best models so that we can see the parameters which maximise the accuracy.
+
+```{r}
+# This chunk takes a while to run, so I would recommend viewing the knitted file for this part.
+# set up tuning grid
+search_grid <- expand.grid(
+  usekernel = c(TRUE, FALSE),
+  fL = 0:3,
+  adjust = seq(0, 3, by = 1)
+)
+
+# train model
+nb.m2 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control,#cross validation
+  tuneGrid = search_grid #tuning search grid
+  )
+
+# top 5 modesl
+nb.m2$results %>% 
+  top_n(5, wt = Accuracy) %>%
+  arrange(desc(Accuracy))
+
+
+# plot search grid results
+plot(nb.m2)
+```
+
+
+Results for best model:
+
+```{r}
+confusionMatrix(nb.m2)
+```
+
+And on the left out set:
+```{r}
+pred <- predict(nb.m2, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+```
+We can see that the top 5 models all have similar accuracy to the previous model, and so tuning in this way doesn't seem to bring much improvement.
+
+### Feature augmentation
+
+The above code can be edited to also investigate the effects of transforming the features on the best model we have so far. Here I choose to try normalizing with Box Cox, standardizing with center-scaling, and reducing the dimensionality with PCA. 
+
+```{r}
+
+# train model
+nb.m3 <- train(
+  x = train_features,
+  y = train_label,
+  method = "nb",
+  trControl = train_control, #cross validation
+  preProc = c("BoxCox", "center", "scale", "pca") #set transformations
+  )
+
+nb.m3$results %>% 
+  top_n(5, wt = Accuracy) %>%
+  arrange(desc(Accuracy))
+
+```
+
+
+Results for best model:
+
+```{r}
+confusionMatrix(nb.m3)
+```
+
+And on the left out set:
+```{r}
+pred <- predict(nb.m3, newdata = test_features)
+confusionMatrix(as.factor(pred), as.factor(test_label))
+```
+
+Whilst the accuracy has decreased slightly here, we can see from the confusion matrix that this model is much better at detecting R2L attacks. Hence, scaling has improved the detection rate for R2L at only a small cost to the accuracy. UR2 also at least now has some predictions, however as such a tiny class, it is still proving difficult to identify.
+
+In summary, the fit of Naive Bayes models to this data can be improved by cross validation and scaling, and we can achieve a high model accuracy. Naive Bayes models struggle to identify the smaller classes, however this is improved by feature augmentation.
+
+## Tree Based methods
+
+I will now investigate a tree based method to see if this can improve on the prediction of small classes.
+
+
+### Xgboost
+
+I now implement a boosted decision tree using xgboost.
+
+The XGBoost algorithm requires the class labels to start at 0 and increase sequentially to the maximum number of classes. This is a bit of an inconvenience as you need to keep track of whick attack class goes with which label. Also, we need to be careful when adding or removing a 1 to go from the zero based labels to the 1 based labels. We have 
+1 = DDoS
+2 = Normal
+3 = Probe
+4 = R2L
+5 = UR2
+
+I also use label encoding for the categorical variables rather than one-hot, following reading their comparison in reference 1.
+
+```{r}
+train <- train_set
+
+for (i in c(2,3,4, 40)){
+  train[,i] = as.numeric(as.factor(train[,i]))
+}
+
+table(train_set$class)
+table(train$class)
+
+train$class = train$class - 1
+summary(train)
+
+
+
+```
+
+
+```{r}
+#making xgboost matrix
+
+data_label <- train[,"class"]
+data_matrix <- xgb.DMatrix(data = as.matrix(train), label = data_label)
+```
+
+### Parameters and cross validation
+Here I set the fitting parameters and then fit a series of XGBoost models to each cv.nfold. The list of xgb_params holds the objective, which I set to multi:softprob and the eval_metric, which I set to to mlogloss. These two parameters tell the XGBoost algorithm that we want to use probabilistic classification and use a multiclass logloss as the evaluation metric. Use of the multi:softprob objective also requires the input of the number of classes.
+
+The other parameters of note are nrounds and prediction. The nrounds parameter is the number of iterations and the prediction argument tells XGBoost to save the out-of-fold predictions so that we can use them to assess generalization error.
+
+```{r}
+#CV
+numberOfClasses <- length(unique(train$class))
+xgb_params <- list("objective" = "multi:softprob",
+                   "eval_metric" = "mlogloss",
+                   "num_class" = numberOfClasses)
+nround    <- 50 # number of XGBoost rounds
+cv.nfold  <- 5
+```
+
+
+
+```{r}
+# Fit XGB models and save the out of fold predictions
+cv_model <- xgb.cv(params = xgb_params,
+                   data = data_matrix, 
+                   nrounds = nround,
+                   nfold = cv.nfold,
+                   verbose = FALSE,
+                   prediction = TRUE)
+```
+
+To assess prediction error, we use the data returned from the pred slot of the cv_model, which contains the predicted value for each observation in our train dataset when it was in the kth fold (the out-of-fold sample). This sample was not used to train the model so therefore acts as an independent sample for testing. This step allows us to derived an error estimate on all of our train samples as if the were independent from the model fit.
+
+The pred object returned from xgb.cv() contains a column for each of the classes and the probability that each observation belongs to each class. This why I chose the multi:softprob objective function as opposed to the multi:softmax function that predicts the model likely class. However, since we want to test the prediction, we do need to assign a class, so we use max.col() to assign the class that has the highest probability. 
+
+```{r}
+# Prediction
+prediction <- data.frame(cv_model$pred) %>%
+  mutate(max_prob = max.col(., ties.method = "last"),
+         label = data_label + 1)
+head(prediction)
+
+confusionMatrix(factor(prediction$max_prob),
+                factor(prediction$label),
+                mode = "everything")
+
+```
+We see that this appears to work extremely well, in fact it classifies every data instance correctly. I now fit the model based on all of the data. 
+
+Train full model:
+
+```{r}
+best_model <- xgb.train(params = xgb_params,
+                       data = data_matrix,
+                       nrounds = nround)
+```
+
+Testing on left out set:
+```{r}
+#Formatting
+test <- test_set
+
+for (i in c(2,3,4, 40)){
+  test[,i] = as.numeric(as.factor(test[,i]))
+}
+test$class = test$class - 1
+summary(test)
+
+#making xgboost matrix
+
+label <- test[,"class"]
+test_matrix <- xgb.DMatrix(data = as.matrix(test), label = label)
+
+#Prediction
+pred <- predict(best_model, test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label = label + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything")
+
+```
+
+We get an accuracy of 100%, even on the left out data and even for the small classes. Predicting using this model is also much faster than with the naive bayes model and so it seems like a win-win! Hence this is the model I will use for performance evaluation on the testing data. It will be interesting to see how it reacts to the unseen attack types in the labelled test data, as decision trees have a tendency to overfit the data.
+
+
+
+# Competition Testing
+
+Here I run the model on the competition test data and output the performance metrics which will be evaluated in 07 - Performance and Discussion.
+
+
+Load the test data:
+```{r}
+kdd_10_test =read.table(path_wd("..","data","kdd_10_test.tab"),header=TRUE)
+labeled_test =read.table(path_wd("..","data","labeled_test.tab"),header=TRUE)
+table(kdd_10_test$class)
+table(labeled_test$class)
+```
+
+
+Preparing the data:
+```{r}
+kdd_10_test <- kdd_10_test[,-c(20,21,42)] #removing the same columns as in training
+labeled_test<- labeled_test[,-c(20,21,42)]
+
+for (i in c(2,3,4, 40)){
+  kdd_10_test[,i] = as.numeric(as.factor(kdd_10_test[,i]))
+}
+kdd_10_test$class = kdd_10_test$class - 1
+label_1 = kdd_10_test$class
+
+for (i in c(2,3,4, 40)){
+  labeled_test[,i] = as.numeric(as.factor(labeled_test[,i]))
+}
+labeled_test$class = labeled_test$class - 1
+label_2 = labeled_test$class
+
+
+#making xgboost matrices
+
+labeled_test_matrix <- xgb.DMatrix(data = as.matrix(labeled_test), label = label_2)
+kdd_10_test_matrix <- xgb.DMatrix(data = as.matrix(kdd_10_test), label = label_1)
+
+```
+
+Prediction for kdd_10_test:
+
+```{r}
+pred <- predict(best_model, kdd_10_test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label_1 = label_1 + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything")
+```
+
+
+Prediction for labeled_test:
+
+```{r}
+pred <- predict(best_model, labeled_test_matrix) 
+test_prediction <- matrix(pred, nrow = numberOfClasses,
+                          ncol=length(pred)/numberOfClasses) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label_2 = label_2 + 1,
+         max_prob = max.col(., "last"))
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$max_prob),
+                factor(test_prediction$label),
+                mode = "everything")
+```
+
+## References
+1. One hot vs label encoding: https://www.ijeat.org/wp-content/uploads/papers/v11i2/B32381211221.pdf
+
+2. Ideas for classification of KDD cup data: https://medium.com/analytics-vidhya/building-an-intrusion-detection-model-using-kdd-cup99-dataset-fb4cba4189ed
+
+3. Naive Bayes and how to use gridsearch: https://uc-r.github.io/naive_bayes
+
+4. XGBoost for multi-class problems : https://rpubs.com/mharris/multiclass_xgboost
