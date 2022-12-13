@@ -39,7 +39,7 @@ Our working is shown in our own directories,
 * Evidence/Ziyuan Jiang
 * Evidence/Zhihui Zhang
 
-Hannah wrote files 01,02,04, and 07. Hailey wrote files 03 and 05. Jiang wrote file 06 and 08.
+Hannah wrote files 01,02,04, and 07. Zhang wrote files 03 and 05. Jiang wrote file 06 and 08.
 
 ## Reflections
 
